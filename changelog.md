@@ -75,6 +75,38 @@
 
 ### 0.0.2 (7/3/2025)
 
-- Optimized core functions: `GL`, `GLpoint`, `RL`, and `RLpoint`
+- Optimized core functions: `GL`, `RL`, and `RLpoint`
 - Added GPU-accelerated `GL` (`GL_gpu`) via [CuPy](https://cupy.dev/) (optional dependency)
 - Modernized package setup and build system
+
+#### GL:
+
+| count |  differintP | differint   |
+| ----- | ----------- | ----------- |
+| 1+e2  | 0.0782 ms   | 0.2159 ms   |
+| 1+e3  | 0.0942 ms   | 0.6401 ms   |
+| 1+e4  | 0.487 ms    | 3.8757 ms   |
+| 1+e5  | 9.1574 ms   | 38.2753 ms  |
+| 1+e6  | 97.8466 ms  | 403.2405 ms |
+| 1+e7  | *           | *           |
+
+
+#### RL
+
+| count |  differintP | differint   |
+| ----- | ----------- | ----------- |
+| 1+e2  | 0.9003 ms   | 4.054 ms    |
+| 1+e3  | 15.8491 ms  | 418.7378 ms |
+| 1+e4  | 1372.8949 ms| 3.8757 ms   |
+
+
+#### RLpoint
+
+| count |  differintP | differint   |
+| ----- | ----------- | ----------- |
+| 1+e2  | 0.0874 ms   | 0.1039 ms   |
+| 1+e3  | 0.1519 ms   | 0.9835 ms   |
+| 1+e4  | 1.0374 ms   | 9.7152 ms   |
+| 1+e5  | 12.5892 ms  | 108.2792 ms |
+| 1+e6  | 126.6893 ms | 995.7722 ms |
+| 1+e7  | 1257.0316 ms| *           |
