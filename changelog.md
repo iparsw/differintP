@@ -110,3 +110,12 @@
 | 1+e5  | 12.5892 ms  | 108.2792 ms |
 | 1+e6  | 126.6893 ms | 995.7722 ms |
 | 1+e7  | 1257.0316 ms| *           |
+
+
+### 0.0.3
+
+- **Redesigned `GLpoint`:** Now uses a fast, single-pass recurrence to compute the Grünwald-Letnikov fractional derivative at the endpoint. This new implementation is both efficient and direct.
+- Legacy and alternative endpoint methods (`GLpoint_direct` and `GLpoint_via_GL`) have been moved to `special.py` for reference and comparison.
+
+
+

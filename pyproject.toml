@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "differintP"
-version = "0.0.2"
+version = "0.0.3"
 description = "Modern, pure Python fractional calculus library (fork of differint)"
 readme = "README.md"
 requires-python = ">=3.7"
