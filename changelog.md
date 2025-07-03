@@ -1,4 +1,4 @@
-# differint changelog
+# differint changelog (parent package)
 
 ## 0.1
 
@@ -21,11 +21,11 @@
 ### Modified
 
   - 'GL' - now works with 'checkvalues' to validate inputs
-  
+
 2018-01-29
 
 ### Added
-  
+
   - 'GLI' - calculate improved GL differintegral
   - Unit tests for all core and auxiliary functions
   - 'GLIinterpolat' calculate interpolation coefficients for GLI algorithm
@@ -43,29 +43,32 @@
 
 2018-05-03
 
-### Added 
-  
-  - 'CRONE' - calcualte GL differintegral operator using CRONE
-  
-2019-12-13
-  
 ### Added
-  
+
+  - 'CRONE' - calcualte GL differintegral operator using CRONE
+
+2019-12-13
+
+### Added
+
   - Added readme to github repository
   - Include future print function support
-  
+
 2022-11-13
-  
+
 ### Added
 
   - 'isPositiveInteger' - check if a number is and integer and positive
   - 'PCsolver' - solve initial value fractional ODEs using the predictor-corrector method
   - Caputo differintegral using the L1, L2, and L2C methods
-  
+
 ### Modified
-  
+
  - Changed the way `isInteger` checks the given value
  - resolved bug in 'CRONE' method
  - updated Pochhammer symbol implementation to support a larger domain of inputs
  - 'checkValues' now supports numpy data types
  - 'Gamma' now uses `math.gamma` for real values to speed up computation
+
+
+# differintP Changelog
