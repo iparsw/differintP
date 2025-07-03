@@ -1,7 +1,3 @@
-##############################
-#  differintP - v0.0.2
-
-
 from __future__ import print_function
 
 from typing import Callable, cast

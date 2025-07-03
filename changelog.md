@@ -72,3 +72,9 @@
 
 
 # differintP Changelog
+
+### 0.0.2 (7/3/2025)
+
+- Optimized core functions: `GL`, `GLpoint`, `RL`, and `RLpoint`
+- Added GPU-accelerated `GL` (`GL_gpu`) via [CuPy](https://cupy.dev/) (optional dependency)
+- Modernized package setup and build system

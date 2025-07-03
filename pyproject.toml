@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "differintP"
-version = "0.1.0"
+version = "0.0.2"
 description = "Modern, pure Python fractional calculus library (fork of differint)"
 readme = "README.md"
 requires-python = ">=3.7"
 license = { file = "LICENSE" }
 authors = [
-    { name = "Your Name", email = "your.email@example.com" }
+    { name = "iparsw", email = "parsaroshanak@gmail.com" }
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -21,8 +21,8 @@ classifiers = [
 ]
 dependencies = [
     # Add your runtime dependencies here, example:
-    "numpy >= 1.19",
-    "scipy >= 1.15.3"
+    "numpy>=1.19",
+    "scipy>=1.15.3",
 ]
 
 [project.optional-dependencies]
@@ -35,9 +35,9 @@ Homepage = "https://github.com/iparsw/differintP"
 Repository = "https://github.com/iparsw/differintP"
 Issues = "https://github.com/iparsw/differintP/issues"
 
-[tool.setuptools]
-package-dir = {"" = "differintP"}
+
 
 [tool.setuptools.packages.find]
-where = ["differintP"]
+where = ["."]
+include = ["differintP*"]
 

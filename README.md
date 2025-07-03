@@ -1,3 +1,7 @@
+- This is a fork of original [differint](https://github.com/differint/differint) project
+- There is also a faster version (but more limited) implemented in c++ [diffeintC](https://github.com/iparsw/differintC)
+
+
 ## differint
 This package is used for numerically calculating fractional derivatives and integrals (differintegrals). Options for varying definitions of the differintegral are available, including the Grunwald-Letnikov (GL), the 'improved' Grunwald-Letnikov (GLI), the Riemann-Liouville (RL), and the Caputo (L1, L2, and L2C). Through the API, you can compute differintegrals at a point or over an array of function values.
 
@@ -12,7 +16,7 @@ This project requires Python 3+ and NumPy to run.
 Installation from the Python Packaging index (https://pypi.python.org/pypi) is simple using pip.
 
 ```python
-pip install differint
+pip install differintP
 ```
 
 ## Included Files
