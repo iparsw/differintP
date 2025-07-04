@@ -386,6 +386,8 @@ def GLI(
     checkValues(alpha, domain_start, domain_end, num_points)
     f_values, step_size = functionCheck(f_name, domain_start, domain_end, num_points)
 
+    f_values = np.asarray(f_values)
+
     # Get interpolating values.
     IN = GLIinterpolat(0.5)
     I = [IN.prv, IN.crr, IN.nxt]
