@@ -333,6 +333,7 @@ def GLI(
     return GLI_vals * step_size**-alpha
 
 
+
 def CRONE(alpha, f_name):
     """Calculates the GL derivative approximation using the CRONE operator.
 
