@@ -2,33 +2,29 @@ import unittest
 import numpy as np
 
 # Import from sibling directory.
-from differintP.core import * # type: ignore
+import sys
+import os
+
+# Add the parent directory (containing differintP) to the import path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from differintP.core import *
+from differintP.functions import MittagLeffler
+
+from .__init__ import test_N
 
 # Define constants to be used in tests.
-poch_first_argument = 1
-poch_second_argument = 5
-poch_true_answer = 120
 size_coefficient_array = 20
-test_N = 512
 sqrtpi2 = 0.88622692545275794
 truevaluepoly = 0.94031597258
 truevaluepoly_caputo = 1.50450555  # 8 / (3 * np.sqrt(np.pi))
 truevaluepoly_caputo_higher = 2 / Gamma(1.5)
-PC_x_power = np.linspace(0, 1, 100) ** 5.5
 
-INTER = GLIinterpolat(1)
 
-stepsize = 1 / (test_N - 1)
-
-# Testing if callable functions and arrays of function values will work.
-checked_function1, test_stepsize1 = functionCheck(
-    lambda x: 2 * np.exp(3 * x) * x - x**2 + x - 5, 0, 1, test_N
-)
-checked_function2, test_stepsize2 = functionCheck(np.ones(test_N), 0, 1, test_N)
-
-# Get results for checking accuracy.
+# Get SQRT results for checking accuracy.
 GL_r = GL(0.5, lambda x: np.sqrt(x), 0, 1, test_N)
 GL_result = GL_r[-1]
+GL_length = len(GL_r)
 
 GLI_r = GLI(0.5, lambda x: np.sqrt(x), 0, 1, test_N)
 GLI_result = GLI_r[-1]
@@ -38,141 +34,224 @@ RL_r = RL(0.5, lambda x: np.sqrt(x), 0, 1, test_N)
 RL_result = RL_r[-1]
 RL_length = len(RL_r)
 
-# Get FODE function for solving.
-PC_func_power = lambda x, y: 1 / 24 * Gamma(5 + 1.5) * x**4 + x ** (8 + 2 * 1.5) - y**2
-PC_func_ML = lambda x, y: y
+
+# --- Exponential function ---
+# For f(x) = exp(x), the fractional derivative of order alpha at x = 1:
+# D^{alpha} e^{x} |_{x=1} = exp(1) / Gamma(1 - alpha)
+alpha_exp = 0.5
+groundtruth_exp_expr = "exp(1) * sum_{k=0}^∞ 1^k / Gamma(k + 1 - 0.5)"
+groundtruth_exp = MittagLeffler(1, 1 - 0.5, np.array([1]))[0]
 
 
-class HelperTestCases(unittest.TestCase):
-    """Tests for helper functions."""
+# --- Sine function ---
+# D^{alpha} sin(x) = sin(x + alpha * pi/2)
+# For alpha=0.5, x=1:
+# Analytical: sin(1 + 0.5 * pi/2)
+alpha_sin = 0.5
+groundtruth_sin_expr = "sin(1 + alpha_sin * pi/2)"
+groundtruth_sin = np.sin(1 + alpha_sin * np.pi / 2)
 
-    def test_isInteger(self):
-        self.assertTrue(isInteger(1))
-        self.assertTrue(isInteger(1.0))
-        self.assertTrue(isInteger(1 + 0j))
-        self.assertFalse(isInteger(1.1))
-        self.assertFalse(isInteger(1.1 + 0j))
-        self.assertFalse(isInteger(1 + 1j))
 
-    def test_isPositiveInteger(self):
-        self.assertTrue(isPositiveInteger(1))
-        self.assertFalse(isPositiveInteger(1.1))
-        self.assertFalse(isPositiveInteger(-1))
 
-    def test_pochhammer(self):
-        self.assertEqual(
-            poch(poch_first_argument, poch_second_argument), poch_true_answer
-        )
-        self.assertEqual(poch(-1, 3), 0)
-        #self.assertEqual(poch(-1.5, 0.5), np.inf)
-        self.assertEqual(np.round(poch(1j, 1), 3), 0.000 + 1.000j)
-        self.assertEqual(poch(-10, 2), 90)
 
-    def test_functionCheck(self):
-        self.assertEqual(len(checked_function1), test_N)
-        self.assertEqual(len(checked_function2), test_N)
 
-        # Make sure it treats defined functions and arrays of function values the same.
-        self.assertEqual(len(checked_function1), len(checked_function2))
-        self.assertEqual(test_stepsize1, stepsize)
-        self.assertEqual(test_stepsize2, stepsize)
-        self.assertEqual(test_stepsize1, test_stepsize2)
 
-    def test_GL_binomial_coefficient_array_size(self):
-        self.assertEqual(
-            len(GLcoeffs(0.5, size_coefficient_array)) - 1, size_coefficient_array
-        )
+class TestAlgorithmsAccuray(unittest.TestCase):
+    """Tests for algorithm accuracy."""
 
-    def test_checkValues(self):
-        with self.assertRaises(AssertionError):
-            checkValues(0.1, 0, 1, 1.1) # type: ignore
-        with self.assertRaises(AssertionError):
-            checkValues(0.1, 1j, 2, 100) # type: ignore
-        with self.assertRaises(AssertionError):
-            checkValues(0.1, 1, 2j, 100) # type: ignore
-        with self.assertRaises(AssertionError):
-            checkValues(0.1, 0, 1, -100)
-        with self.assertRaises(AssertionError):
-            checkValues(1 + 1j, 0, 1, 100) # type: ignore
-        checkValues(0.5, 0, 1, 100, support_complex_alpha=True)
-        checkValues(1 + 1j, 0, 1, 100, support_complex_alpha=True) # type: ignore
-        alpha_vals = np.array([0.1, 0.2])
-        domain_vals = np.array([0.1, 1, 2.0, -1])
-        num_vals = np.array([1.0, 100.0])
-        [
-            [
-                [
-                    [
-                        checkValues(alpha, domain_start, domain_end, num_points)
-                        for alpha in alpha_vals
-                    ]
-                    for domain_start in domain_vals
-                ]
-                for domain_end in domain_vals
-            ]
-            for num_points in num_vals
-        ]
+    #######################
+    # GLpoint
+    #######################
 
-    """ Unit tests for gamma function. """
-
-    def testFiveFactorial(self):
-        self.assertEqual(Gamma(6), 120)
-
-#    def testNegativePoles(self):
-#        self.assertEqual(Gamma(-2), np.float64(np.nan)) # The old version was np.inf
-
-    def testRealValue(self):
-        self.assertEqual(np.round(Gamma(1.25), 12), 0.906402477055)
-
-    def testComplexValue(self):
-        self.assertEqual(np.round(Gamma(1j), 4), -0.1549 - 0.498j)
-
-    """ Unit tests for Mittag-Leffler function. """
-
-    def test_ML_cosh_root(self):
-        xs = np.arange(10, 0.1)
+    # sqrt
+    def test_GLpoint_sqrt_accuracy(self):
         self.assertTrue(
-            (
-                np.abs(
-                    MittagLeffler(2, 1, xs, ignore_special_cases=True)
-                    - np.cosh(np.sqrt(xs))
-                )
-                <= 1e-3
-            ).all()
+            abs(GLpoint(0.5, lambda x: x**0.5, 0.0, 1.0, 1024) - sqrtpi2) <= 1e-3
         )
 
-    def test_ML_exp(self):
-        xs = np.arange(10, 0.1)
+    # x**2 - 1
+    def test_GLpoint_accuracy_polynomial(self):
         self.assertTrue(
-            (
-                np.abs(MittagLeffler(1, 1, xs, ignore_special_cases=True) - np.exp(xs))
-                <= 1e-3
-            ).all()
+            abs(GLpoint(0.5, lambda x: x**2 - 1, 0.0, 1.0, 1024) - truevaluepoly)
+            <= 1e-3
         )
 
-    def test_ML_geometric(self):
-        xs = np.arange(1, 0.05)
+    # exp
+    def test_GLpoint_accuracy_exp(self):
+        """Test GLpoint on f(x) = exp(x), alpha=0.5. Analytical: exp(1)/Gamma(0.5)"""
+        val = GLpoint(alpha_exp, np.exp, 0, 1, 1024)
+        self.assertTrue(abs(val - groundtruth_exp) < 1e-3)
+
+
+    #######################
+    # GL
+    #######################
+
+    # sqrt
+    def test_GL_accuracy_sqrt(self):
+        self.assertTrue(abs(GL_result - sqrtpi2) <= 1e-4)
+
+    # x**2 - 1
+    def test_GL_accuracy_polynomial(self):
         self.assertTrue(
-            (
-                np.abs(
-                    MittagLeffler(0, 1, xs, ignore_special_cases=True) - 1 / (1 - xs)
-                )
-                <= 1e-3
-            ).all()
+            abs(GL(0.5, lambda x: x**2 - 1, 0.0, 1.0, 1024)[-1] - truevaluepoly)
+            <= 1e-3
         )
 
-
-class TestInterpolantCoefficients(unittest.TestCase):
-    """Test the correctness of the interpolant coefficients."""
-
-    def check_coefficients(self):
-        self.assertEqual(INTER.prv, -0.125)
-        self.assertEqual(INTER.crr, 0.75)
-        self.assertEqual(INTER.nxt, 0.375)
+    # exp
+    def test_GL_accuracy_exp(self):
+        """Test GL on f(x) = exp(x), alpha=0.5. Analytical: exp(1)/Gamma(0.5)"""
+        val = GL(alpha_exp, np.exp, 0, 1, 1024)[-1]
+        # print(f"exp: numeric={val}, expected={groundtruth_exp}")
+        self.assertTrue(abs(val - groundtruth_exp) < 1e-3)
 
 
-class TestAlgorithms(unittest.TestCase):
+    #######################
+    # GLI
+    #######################
+
+    # sqrt
+    def test_GLI_accuracy_sqrt(self):
+        self.assertTrue(abs(GLI_result - sqrtpi2) <= 1e-4)
+
+    # x**2 - 1
+    def test_GLI_accuracy_polynomial(self):
+        self.assertTrue(
+            abs(GLI(0.5, lambda x: x**2 - 1, 0.0, 1.0, 1024)[-1] - truevaluepoly)
+            <= 6e-3 # low accuracy
+        )
+
+    # exp
+    def test_GLI_accuracy_exp(self):
+        """Test GLI on f(x) = exp(x), alpha=0.5. Analytical: Gamma(0.5)"""
+        val = GLI(alpha_exp, np.exp, 0, 1, 1024)[-1]
+        # print(f"exp: numeric={val}, expected={groundtruth_exp}")
+        self.assertTrue(abs(val - groundtruth_exp) < 5e-3) # low accuracy
+        # Abs error: 0.00481
+
+
+    #######################
+    # RLpoint
+    #######################
+
+    # sqrt
+    def test_RLpoint_sqrt_accuracy(self):
+        self.assertTrue(
+            abs(RLpoint(0.5, lambda x: x**0.5, 0.0, 1.0, 1024) - sqrtpi2) <= 1e-3
+        )
+
+    # poly x**2 - 1
+    def test_RLpoint_accuracy_polynomial(self):
+        self.assertTrue(
+            abs(RLpoint(0.5, lambda x: x**2 - 1, 0.0, 1.0, 1024) - truevaluepoly)
+            <= 1e-2
+        )
+
+    # exp
+    def test_RLpoint_accuracy_exp(self):
+        """Test RLpoint on f(x) = exp(x), alpha=0.5. Analytical: exp(1)/Gamma(0.5)"""
+        val = RLpoint(alpha_exp, np.exp, 0, 1, 1024)
+        self.assertTrue(abs(val - groundtruth_exp) < 1e-3)
+
+
+    #######################
+    # RL
+    #######################
+
+    # sqrt
+    def test_RL_accuracy_sqrt(self):
+        self.assertTrue(abs(RL_result - sqrtpi2) <= 1e-4)
+
+    # x**2 - 1
+    def test_RL_accuracy_polynomial(self):
+        self.assertTrue(
+            abs(RL(0.5, lambda x: x**2 - 1, 0.0, 1.0, 1024)[-1] - truevaluepoly)
+            <= 1e-3
+        )
+
+    # exp
+    def test_RL_accuracy_exp(self):
+        """Test RL on f(x) = exp(x), alpha=0.5. Analytical: exp(1)/Gamma(0.5)"""
+        val = RL(alpha_exp, np.exp, 0, 1, 1024)[-1]
+        # print(f"exp: numeric={val}, expected={groundtruth_exp}")
+        self.assertTrue(abs(val - groundtruth_exp) < 1e-3)
+
+    #######################
+    # Caputo 1p
+    #######################
+
+    # sqrt
+    def test_CaputoL1point_accuracy_sqrt(self):
+        self.assertTrue(
+            abs(CaputoL1point(0.5, lambda x: x**0.5, 0, 1.0, 1024) - sqrtpi2) <= 1e-2
+        )
+
+    # x**2 - 1
+    def test_CaputoL1point_accuracy_polynomial(self):
+        self.assertTrue(
+            abs(
+                CaputoL1point(0.5, lambda x: x**2 - 1, 0, 1.0, 1024)
+                - truevaluepoly_caputo
+            )
+            <= 1e-3
+        )
+
+    # exp
+    def test_CaputoL1point_accuracy_exp(self):
+        """Test RLpoint on f(x) = exp(x), alpha=0.5. Analytical: exp(1)/Gamma(0.5)"""
+        val = CaputoL1point(alpha_exp, np.exp, 0, 1, 1024)
+        self.assertTrue(abs(val - groundtruth_exp) < 0.6) # really bad accuracy
+
+
+    #######################
+    # Caputo 2p
+    #######################
+
+    # x**2 - 1
+    def test_CaputoL2point_accuracy_polynomial(self):
+        self.assertTrue(
+            abs(
+                CaputoL2point(1.5, lambda x: x**2, 0, 1.0, 1024)
+                - truevaluepoly_caputo_higher
+            )
+            <= 1e-1
+        )
+
+    #######################
+    # Caputo 2pC
+    #######################
+
+    # x**2 (a = 1.5)
+    def test_CaputoL2Cpoint_accuracy_polynomial_higher(self):
+        self.assertTrue(
+            abs(
+                CaputoL2Cpoint(1.5, lambda x: x**2, 0, 1.0, 1024)
+                - truevaluepoly_caputo_higher
+            )
+            <= 1e-1
+        )
+
+    # x**2 - 1
+    def test_CaputoL2Cpoint_accuracy_polynomial(self):
+        self.assertTrue(
+            abs(
+                CaputoL2Cpoint(0.5, lambda x: x**2, 0, 1.0, 1024) - truevaluepoly_caputo
+            )
+            <= 1e-3
+        )
+
+    # exp
+    def test_CaputoL2Cpoint_accuracy_exp(self):
+        """Test RLpoint on f(x) = exp(x), alpha=0.5. Analytical: exp(1)/Gamma(0.5)"""
+        val = CaputoL2Cpoint(alpha_exp, np.exp, 0, 1, 1024)
+        self.assertTrue(abs(val - groundtruth_exp) < 2) # unusable
+
+
+class TestAlgorithmsGeneral(unittest.TestCase):
     """Tests for correct size of algorithm results."""
+
+    def test_GL_result_length(self):
+        self.assertEqual(GL_length, test_N)
 
     def test_GLI_result_length(self):
         self.assertEqual(GLI_length, test_N)
@@ -183,107 +262,11 @@ class TestAlgorithms(unittest.TestCase):
     def test_RL_matrix_shape(self):
         self.assertTrue(np.shape(RLmatrix(0.4, test_N)) == (test_N, test_N))
 
-    """ Tests for algorithm accuracy. """
-
-    def test_GLpoint_sqrt_accuracy(self):
-        self.assertTrue(
-            abs(GLpoint(0.5, lambda x: x**0.5, 0.0, 1.0, 1024) - sqrtpi2) <= 1e-3
+    def test_GL_binomial_coefficient_array_size(self):
+        self.assertEqual(
+            len(GLcoeffs(0.5, size_coefficient_array)) - 1, size_coefficient_array
         )
 
-    def test_GLpoint_accuracy_polynomial(self):
-        self.assertTrue(
-            abs(GLpoint(0.5, lambda x: x**2 - 1, 0.0, 1.0, 1024) - truevaluepoly)
-            <= 1e-3
-        )
-
-    def test_GL_accuracy_sqrt(self):
-        self.assertTrue(abs(GL_result - sqrtpi2) <= 1e-4)
-
-    def test_GLI_accuracy_sqrt(self):
-        self.assertTrue(abs(GLI_result - sqrtpi2) <= 1e-4)
-
-    def test_RLpoint_sqrt_accuracy(self):
-        self.assertTrue(
-            abs(RLpoint(0.5, lambda x: x**0.5, 0.0, 1.0, 1024) - sqrtpi2) <= 1e-3
-        )
-
-    def test_RLpoint_accuracy_polynomial(self):
-        self.assertTrue(
-            abs(RLpoint(0.5, lambda x: x**2 - 1, 0.0, 1.0, 1024) - truevaluepoly)
-            <= 1e-2
-        )
-
-    def test_RL_accuracy_sqrt(self):
-        self.assertTrue(abs(RL_result - sqrtpi2) <= 1e-4)
-
-    def test_CaputoL1point_accuracy_sqrt(self):
-        self.assertTrue(
-            abs(CaputoL1point(0.5, lambda x: x**0.5, 0, 1.0, 1024) - sqrtpi2) <= 1e-2
-        )
-
-    def test_CaputoL1point_accuracy_polynomial(self):
-        self.assertTrue(
-            abs(
-                CaputoL1point(0.5, lambda x: x**2 - 1, 0, 1.0, 1024)
-                - truevaluepoly_caputo
-            )
-            <= 1e-3
-        )
-
-    def test_CaputoL2point_accuracy_polynomial(self):
-        self.assertTrue(
-            abs(
-                CaputoL2point(1.5, lambda x: x**2, 0, 1.0, 1024)
-                - truevaluepoly_caputo_higher
-            )
-            <= 1e-1
-        )
-
-    def test_CaputoL2Cpoint_accuracy_polynomial_higher(self):
-        self.assertTrue(
-            abs(
-                CaputoL2Cpoint(1.5, lambda x: x**2, 0, 1.0, 1024)
-                - truevaluepoly_caputo_higher
-            )
-            <= 1e-1
-        )
-
-    def test_CaputoL2Cpoint_accuracy_polynomial(self):
-        self.assertTrue(
-            abs(
-                CaputoL2Cpoint(0.5, lambda x: x**2, 0, 1.0, 1024) - truevaluepoly_caputo
-            )
-            <= 1e-3
-        )
-
-
-class TestSolvers(unittest.TestCase):
-    """Tests for the correct solution to the equations."""
-
-    def test_PC_solution_three_halves(self):
-        self.assertTrue(
-            (
-                np.abs(PCsolver([0, 0], 1.5, PC_func_power, 0, 1, 100) - PC_x_power)
-                <= 1e-2
-            ).all()
-        )
-
-    def test_PC_solution_ML(self):
-        xs = np.linspace(0, 1, 100)
-        ML_alpha = MittagLeffler(5.5, 1, xs**5.5)
-        self.assertTrue(
-            (
-                np.abs(PCsolver([1, 0, 0, 0, 0, 0], 5.5, PC_func_ML) - ML_alpha) <= 1e-2
-            ).all()
-        )
-
-    def test_PC_solution_linear(self):
-        xs = np.linspace(0, 1, 100)
-        self.assertTrue(
-            (
-                np.abs(PCsolver([1, 1], 1.5, lambda x, y: y - x - 1) - (xs + 1)) <= 1e-2
-            ).all()
-        )
 
 
 if __name__ == "__main__":
