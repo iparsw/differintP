@@ -2,11 +2,11 @@ from __future__ import print_function
 
 from typing import Callable, cast
 
-from git import Optional
 import numpy as np
 
 from scipy.special import gamma as Gamma
-
+from scipy.signal import fftconvolve
+from numba import njit
 
 #  CuPy dependency for GPU-accelerated GL_gpu
 from .gpu_utils import cupy_manager
@@ -30,7 +30,7 @@ def checkValues(
     domain_start: int | float,
     domain_end: int | float,
     num_points: int,
-    support_complex_alpha: bool = False
+    support_complex_alpha: bool = False,
 ) -> bool | None:
     """Type checking for valid inputs."""
 
@@ -70,7 +70,7 @@ def functionCheck(
         f_values = list(map(lambda t: f_name(t), x))
         step_size = x[1] - x[0]
     else:
-        f_name = cast(np.ndarray | list, f_name)
+        f_name = cast(np.ndarray | list[float], f_name)
         num_points = np.size(f_name)
         f_values = f_name
         step_size = (domain_end - domain_start) / (num_points - 1)
@@ -158,6 +158,11 @@ def MittagLeffler(
     return np.sum(exp_vals / gamma_vals, axis=1)
 
 
+#########################################################################################
+########################################## GL ###########################################
+#########################################################################################
+
+
 def GLcoeffs(alpha: float, n: int) -> np.ndarray:
     """Vectorized GL coefficient computation"""
     """ Computes the GL coefficient array of size n.
@@ -178,55 +183,6 @@ def GLcoeffs(alpha: float, n: int) -> np.ndarray:
 
     # Compute cumulative product
     return np.cumprod(factors)
-
-
-def GLpoint(
-    alpha: float,
-    f_name: Callable | np.ndarray | list,
-    domain_start: float = 0.0,
-    domain_end: float = 1.0,
-    num_points: int = 100,
-) -> float:
-    """Computes the GL fractional derivative of a function at a point.
-
-    Parameters
-    ==========
-     alpha : float
-         The order of the differintegral to be computed.
-     f_name : function handle, lambda function, list, or 1d-array of
-              function values
-         This is the function that is to be differintegrated.
-     domain_start : float
-         The left-endpoint of the function domain. Default value is 0.
-     domain_end : float
-         The right-endpoint of the function domain; the point at which the
-         differintegral is being evaluated. Default value is 1.
-     num_points : integer
-         The number of points in the domain. Default value is 100.
-
-     Examples:
-     >>> DF_poly = GLpoint(-0.5, lambda x: 3*x**2 - 9*x + 2)
-     >>> DF_sqrt = GLpoint(0.5, lambda x: np.sqrt(x), 0., 1., 100)
-    """
-    # Flip the domain limits if they are in the wrong order.
-    if domain_start > domain_end:
-        domain_start, domain_end = domain_end, domain_start
-
-    # Check inputs.
-    checkValues(alpha, domain_start, domain_end, num_points)
-    f_values, _ = functionCheck(f_name, domain_start, domain_end, num_points)
-
-    # Calculate the GL differintegral, avoiding the explicit calculation of
-    # the gamma function.
-    GL_previous = f_values[1]
-    for index in range(2, num_points):
-        GL_current = (
-            GL_previous * (num_points - alpha - index - 1) / (num_points - index)
-            + f_values[index]
-        )
-        GL_previous = GL_current
-
-    return GL_current * (num_points / (domain_end - domain_start)) ** alpha # type: ignore
 
 
 def GL(
@@ -285,6 +241,66 @@ def GL(
     return result
 
 
+@njit
+def _GLpoint_loop(alpha: float, f_values: np.ndarray, step: float) -> float:
+    k = f_values.shape[0] - 1
+    acc = 0.0
+    c_val = 1.0
+    for j in range(k + 1):
+        acc += c_val * f_values[k - j]
+        if j < k:
+            c_val *= (-alpha + j) / (j + 1)
+    return step ** (-alpha) * acc
+
+def GLpoint(
+    alpha: float,
+    f_name: Callable[[np.ndarray], np.ndarray] | list[float] | np.ndarray,
+    domain_start: float = 0.0,
+    domain_end: float = 1.0,
+    num_points: int = 100,
+) -> float:
+    """
+    Efficient, robust single-point Grünwald-Letnikov fractional derivative
+    using a direct recurrence (C++-style) in a JIT-compiled kernel.
+
+    Parameters
+    ----------
+    alpha : float
+        The order of the fractional derivative.
+    f_name : Callable[[np.ndarray], np.ndarray] or Sequence[float] or np.ndarray
+        The function to differentiate (callable or array-like).
+    domain_start : float, optional
+        The starting value of the domain (default is 0.0).
+    domain_end : float, optional
+        The ending value of the domain (default is 1.0).
+    num_points : int, optional
+        Number of discretization points (default is 100).
+
+    Returns
+    -------
+    float
+        The Grünwald-Letnikov fractional derivative at the endpoint.
+    """
+    if domain_start > domain_end:
+        domain_start, domain_end = domain_end, domain_start
+
+    x = np.linspace(domain_start, domain_end, num_points)
+    if callable(f_name):
+        f_values = f_name(x)
+    else:
+        f_values = np.asarray(f_name)
+        if len(f_values) != num_points:
+            raise ValueError("Function array length doesn't match num_points")
+
+    step = (domain_end - domain_start) / (num_points - 1)
+
+    return _GLpoint_loop(alpha, f_values, step)
+
+
+#########################################################################################
+######################################## GL Gpu #########################################
+#########################################################################################
+
 def _gpu_GLcoeffs(
     alpha: float,
     n: int,
@@ -342,6 +358,23 @@ def GL_gpu(
 
     return cupy_manager.cp.asnumpy(result)  # Convert back to CPU # type: ignore
 
+#########################################################################################
+##################################### GLI - Crone #######################################
+#########################################################################################
+
+class GLIinterpolat:
+    """Class for computing interpolation of function values for the
+    improved GL algorithm.
+
+    Using a class here helps avoid type flexibility for these constants.
+    """
+
+    def __init__(self, alpha):
+        # Determine coefficients for quadratic interpolation.
+        self.nxt = alpha * (2 + alpha) / 8
+        self.crr = (4 - alpha * alpha) / 4
+        self.prv = alpha * (alpha - 2) / 8
+
 
 def GLI(
     alpha: float,
@@ -350,32 +383,56 @@ def GLI(
     domain_end: float = 1.0,
     num_points: int = 100,
 ) -> np.ndarray:
-    """Computes the 'improved' GL fractional derivative of a function for an
-     entire array of function values. The 'improved' definition uses the
-     3-point Lagrange interpolation found in:
+    """
+    Computes the 'improved' Grünwald-Letnikov (GL) fractional derivative of a function over an entire domain,
+    using a hybrid approach for efficiency.
 
-         Oldham, K. & Spanier, J. (1974). The Fractional Calculus: Theory
-             and Applications of Differentiation and Integration to Arbitrary
-             Order. Academic Press, Inc.
+    This implementation applies a 3-point Lagrange interpolation (from Oldham & Spanier, 1974)
+    to the function values before convolution, resulting in a higher-order and more accurate
+    fractional derivative estimate compared to the standard GL method.
 
-     Parameters
-    ==========
-     alpha : float
-         The order of the differintegral to be computed.
-     f_name : function handle, lambda function, list, or 1d-array of
-              function values
-         This is the function that is to be differintegrated.
-     domain_start : float
-         The left-endpoint of the function domain. Default value is 0.
-     domain_end : float
-         The right-endpoint of the function domain; the point at which the
-         differintegral is being evaluated. Default value is 1.
-     num_points : integer
-         The number of points in the domain. Default value is 100.
+    For best performance, a hybrid approach is used:
+    - For arrays smaller than 800 points, a direct NumPy convolution is performed.
+    - For larger arrays, a fast FFT-based convolution is used via `scipy.signal.fftconvolve`.
 
-     Examples:
-     >>> GLI_poly = GLI(-0.5, lambda x: x**2 - 1)
-     >>> GLI_sqrt = GLI(0.5, lambda x: np.sqrt(x), 0., 1., 100)
+    Parameters
+    ----------
+    alpha : float
+        Order of the fractional differintegral to compute.
+    f_name : Callable, list, or 1d-array
+        Function, lambda, or sequence of function values to be differintegrated.
+        If callable, it will be evaluated at `num_points` evenly spaced points.
+    domain_start : float, optional
+        Start of the domain. Default is 0.0.
+    domain_end : float, optional
+        End of the domain. Default is 1.0.
+    num_points : int, optional
+        Number of points to evaluate in the domain. Default is 100.
+
+    Returns
+    -------
+    np.ndarray
+        Array of 'improved' GL fractional derivative values at each grid point.
+
+    Notes
+    -----
+    This method implements the "improved" Grünwald-Letnikov definition by first applying
+    quadratic interpolation to each interior function value:
+        interpolated[i] = a * f[i-1] + b * f[i] + c * f[i+1]
+    where the coefficients (a, b, c) depend on `alpha` and are chosen to reduce discretization error.
+
+    The resulting interpolated array is then convolved with the GL binomial coefficients,
+    with the result scaled by the step size raised to `-alpha`. For performance, the function
+    chooses between direct and FFT convolution based on array size.
+
+    References
+    ----------
+    Oldham, K. & Spanier, J. (1974). The Fractional Calculus: Theory and Applications of Differentiation and Integration to Arbitrary Order. Academic Press.
+
+    Examples
+    --------
+    >>> GLI_poly = GLI(-0.5, lambda x: x**2 - 1)
+    >>> GLI_sqrt = GLI(0.5, lambda x: np.sqrt(x), 0., 1., 100)
     """
 
     # Flip the domain limits if they are in the wrong order.
@@ -387,22 +444,25 @@ def GLI(
     f_values, step_size = functionCheck(f_name, domain_start, domain_end, num_points)
 
     # Get interpolating values.
-    IN = GLIinterpolat(0.5)
-    I = [IN.prv, IN.crr, IN.nxt]
+    prv = alpha * (alpha - 2) / 8
+    crr = (4 - alpha * alpha) / 4
+    nxt = alpha * (2 + alpha) / 8
 
-    # Get array of generalized binomial coefficients.
-    b_coeffs = GLcoeffs(0.5, num_points)
+    # Build interpolated values (ignoring endpoints for simplicity)
+    interpolated = np.zeros_like(f_values)
+    interpolated[1:-1] = prv * f_values[:-2] + crr * f_values[1:-1] + nxt * f_values[2:] # type: ignore
 
-    # Calculate the improved GL differintegral using convolution.
-    GLI = np.zeros(num_points)
-    for i in range(3, num_points):
-        F = f_values[:i]
-        L = len(F)
-        B = b_coeffs[: (L - 2)]
-        G = np.convolve(F, B, "valid")
-        GLI[i] = sum(G * I)
+    # Precompute coefficients
+    b_coeffs = GLcoeffs(alpha, num_points - 1)
 
-    return GLI * step_size**-alpha
+    # Single convolution for whole array (valid part only)
+    if num_points < 800:
+        result = np.convolve(interpolated, b_coeffs, mode="full")[:num_points]
+        return result * step_size ** -alpha
+    #FFT convolution
+    else:
+        result = fftconvolve(interpolated, b_coeffs, mode="full")[:num_points]
+        return result * step_size ** -alpha
 
 
 def CRONE(alpha, f_name):
@@ -471,6 +531,10 @@ def CRONE(alpha, f_name):
     else:
         raise InputError(f_name, "f_name must have dimension <= 2")
 
+
+#########################################################################################
+########################################### RL ##########################################
+#########################################################################################
 
 def RLmatrix(alpha, N):
     """Vectorized RL coefficient matrix generation"""
@@ -671,18 +735,13 @@ def RL(
     return result
 
 
-class GLIinterpolat:
-    """Class for computing interpolation of function values for the
-    improved GL algorithm.
 
-    Using a class here helps avoid type flexibility for these constants.
-    """
 
-    def __init__(self, alpha):
-        # Determine coefficients for quadratic interpolation.
-        self.nxt = alpha * (2 + alpha) / 8
-        self.crr = (4 - alpha * alpha) / 4
-        self.prv = alpha * (alpha - 2) / 8
+
+
+#########################################################################################
+######################################### Caputo ########################################
+#########################################################################################
 
 
 def CaputoL1point(
@@ -943,6 +1002,10 @@ def CaputoFromRLpoint(
     )
     return C
 
+
+#########################################################################################
+######################################## PCsolver #######################################
+#########################################################################################
 
 def PCcoeffs(alpha, j, n):
     if 1 < alpha:
