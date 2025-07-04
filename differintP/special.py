@@ -2,7 +2,8 @@ from typing import Callable
 
 import numpy as np
 
-from differintP import functionCheck, checkValues, GL
+from .utils import functionCheck, checkValues
+from .core import GL
 
 
 def GLpoint_via_GL(

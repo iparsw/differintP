@@ -1,161 +1,19 @@
 from __future__ import print_function
 
-from typing import Callable, cast
+from typing import Callable
 
 import numpy as np
 
 from scipy.special import gamma as Gamma
-from scipy.signal import fftconvolve
 from numba import njit
 
 #  CuPy dependency for GPU-accelerated GL_gpu
 from .gpu_utils import cupy_manager
 
-
-def isInteger(n) -> bool:
-    if n.imag:
-        return False
-    if float(n.real).is_integer():
-        return True
-    else:
-        return False
+from .utils import checkValues, functionCheck
 
 
-def isPositiveInteger(n) -> bool:
-    return isInteger(n) and n > 0
 
-
-def checkValues(
-    alpha: float,
-    domain_start: int | float,
-    domain_end: int | float,
-    num_points: int,
-    support_complex_alpha: bool = False,
-) -> bool | None:
-    """Type checking for valid inputs."""
-
-    assert isPositiveInteger(num_points), (
-        "num_points is not an integer: %r" % num_points
-    )
-
-    assert isinstance(domain_start, (int, np.integer, float, np.floating)), (
-        "domain_start must be integer or float: %r" % domain_start
-    )
-
-    assert isinstance(domain_end, (int, np.integer, float, np.floating)), (
-        "domain_end must be integer or float: %r" % domain_end
-    )
-
-    if not support_complex_alpha:
-        assert not isinstance(
-            alpha, complex
-        ), "Complex alpha not supported for this algorithm."
-
-    return
-
-
-def functionCheck(
-    f_name: Callable | list | np.ndarray,
-    domain_start: float | int,
-    domain_end: float | int,
-    num_points: int,
-):
-    """Check if function is callable and assign function values."""
-
-    # Define the function domain and obtain function values.
-    if hasattr(f_name, "__call__"):
-        f_name = cast(Callable, f_name)
-        # If f_name is callable, call it and save to a list.
-        x = np.linspace(domain_start, domain_end, num_points)
-        f_values = list(map(lambda t: f_name(t), x))
-        step_size = x[1] - x[0]
-    else:
-        f_name = cast(np.ndarray | list[float], f_name)
-        num_points = np.size(f_name)
-        f_values = f_name
-        step_size = (domain_end - domain_start) / (num_points - 1)
-    return f_values, step_size
-
-
-def poch(a, n):
-    """Returns the Pochhammer symbol (a)_n. a can be any complex or real number
-    except the negative integers and 0. n can be any nonnegative real.
-    """
-    if isPositiveInteger(n):
-        # Compute the Pochhammer symbol.
-        n = int(n)
-        if n == 0:
-            return 1.0
-        else:
-            poch = 1
-            for j in range(n):
-                poch *= a + j
-            return poch
-
-    # if a and a + n are both nonpositive integers, we can use another formula...
-    # see here https://www.mathworks.com/help/symbolic/sym.pochhammer.html
-    if isPositiveInteger(-1 * a) and isPositiveInteger(-1 * a - n):
-        sign = -1 if np.abs(n % 2) == 1 else 1
-        return sign * Gamma(1 - a) / Gamma(1 - a - n)
-    return Gamma(a + n) / Gamma(a)
-
-
-def Beta(
-    x: int | float | np.ndarray | list | complex,
-    y: int | float | np.ndarray | list | complex,
-) -> int | float | np.ndarray | list | complex:
-    """Beta function using Godfrey's Gamma function."""
-
-    return Gamma(x) * Gamma(y) / Gamma(x + y)  # type: ignore
-
-
-def MittagLeffler(
-    a: float,
-    b: float,
-    x: np.ndarray,
-    num_terms: int = 50,
-    ignore_special_cases: bool = False,
-) -> np.ndarray:
-    """Calculate the Mittag-Leffler function by checking for special cases, and trying to
-     reduce the parameters. If neither of those work, it just brute forces it.
-
-     Parameters
-    ==========
-     a : float
-         The first parameter of the Mittag-Leffler function.
-     b : float
-         The second parameter of the Mittag-Leffler function
-     x : 1D-array of floats (can be len = 1)
-         The value or values to be evaluated at.
-     num_terms : int
-         The number of terms to calculate in the sum. Ignored if
-         a special case can be used instead. Default value is 100.
-     ignore_special_cases : bool
-         Don't use the special cases, use the series definition.
-         Probably only useful for testing. Default value is False.
-    """
-    # check for quick special cases
-    if not ignore_special_cases:
-        if a == 0:
-            if (np.abs(x) < 1).all():
-                return 1 / Gamma(b) * 1 / (1 - x)
-            return x * np.inf
-        elif a == 0.5 and b == 1:
-            # requires calculation of the complementary error function
-            pass
-        elif a == 1 and b == 1:
-            return np.exp(x)
-        elif a == 2 and b == 1:
-            return np.cosh(np.sqrt(x))
-        elif a == 1 and b == 2:
-            return (np.exp(x) - 1) / x
-        elif a == 2 and b == 2:
-            return np.sinh(np.sqrt(x)) / np.sqrt(x)
-    # manually calculate with series definition
-    exponents = np.arange(num_terms)
-    exp_vals = np.array([x]).T ** exponents
-    gamma_vals = np.array([Gamma(exponent * a + b) for exponent in exponents])
-    return np.sum(exp_vals / gamma_vals, axis=1)
 
 
 #########################################################################################
@@ -252,6 +110,7 @@ def _GLpoint_loop(alpha: float, f_values: np.ndarray, step: float) -> float:
             c_val *= (-alpha + j) / (j + 1)
     return step ** (-alpha) * acc
 
+
 def GLpoint(
     alpha: float,
     f_name: Callable[[np.ndarray], np.ndarray] | list[float] | np.ndarray,
@@ -300,6 +159,7 @@ def GLpoint(
 #########################################################################################
 ######################################## GL Gpu #########################################
 #########################################################################################
+
 
 def _gpu_GLcoeffs(
     alpha: float,
@@ -358,22 +218,43 @@ def GL_gpu(
 
     return cupy_manager.cp.asnumpy(result)  # Convert back to CPU # type: ignore
 
+
 #########################################################################################
 ##################################### GLI - Crone #######################################
 #########################################################################################
 
-class GLIinterpolat:
-    """Class for computing interpolation of function values for the
-    improved GL algorithm.
-
-    Using a class here helps avoid type flexibility for these constants.
+@njit
+def _GLI_core(alpha: float, f_values: np.ndarray, b_coeffs: np.ndarray) -> np.ndarray:
     """
+    Developer function: Efficiently computes the improved Grünwald-Letnikov (GLI) fractional derivative core.
 
-    def __init__(self, alpha):
-        # Determine coefficients for quadratic interpolation.
-        self.nxt = alpha * (2 + alpha) / 8
-        self.crr = (4 - alpha * alpha) / 4
-        self.prv = alpha * (alpha - 2) / 8
+    Given function values and GL coefficients (as 1D NumPy arrays), this routine:
+    - Applies a 3-point quadratic (Lagrange) interpolation in a moving window.
+    - For each point, performs a local convolution with a flipped GL coefficient array.
+    - Combines results with fixed interpolation weights for high-order accuracy.
+
+    Intended for internal use with Numba JIT compilation for speed.
+    Inputs must be 1D NumPy arrays of matching length.
+    """
+    num_points = f_values.shape[0]
+    GLI = np.zeros(num_points)
+    prv = alpha * (alpha - 2) / 8
+    crr = (4 - alpha * alpha) / 4
+    nxt = alpha * (2 + alpha) / 8
+    I = np.array([prv, crr, nxt])
+    for i in range(3, num_points):
+        L = i
+        F = f_values[:L]
+        B = b_coeffs[: (L - 2)]
+        G = np.zeros(3)
+        B_flip = B[::-1]
+        for m in range(3):
+            s = 0.0
+            for n in range(len(B)):
+                s += F[m + n] * B_flip[n]
+            G[m] = s
+        GLI[i] = np.sum(G * I)
+    return GLI
 
 
 def GLI(
@@ -385,15 +266,14 @@ def GLI(
 ) -> np.ndarray:
     """
     Computes the 'improved' Grünwald-Letnikov (GL) fractional derivative of a function over an entire domain,
-    using a hybrid approach for efficiency.
+    using the quadratic 3-point Lagrange interpolation method described by Oldham & Spanier (1974).
 
-    This implementation applies a 3-point Lagrange interpolation (from Oldham & Spanier, 1974)
-    to the function values before convolution, resulting in a higher-order and more accurate
-    fractional derivative estimate compared to the standard GL method.
+    This implementation applies a three-point moving-window interpolation to the function values,
+    followed by a specialized convolution with Grünwald-Letnikov coefficients at each evaluation point.
+    The result is a higher-order, more accurate fractional derivative estimate compared to the standard GL method,
+    especially for smooth functions.
 
-    For best performance, a hybrid approach is used:
-    - For arrays smaller than 800 points, a direct NumPy convolution is performed.
-    - For larger arrays, a fast FFT-based convolution is used via `scipy.signal.fftconvolve`.
+    For performance, a Numba-accelerated helper is used internally.
 
     Parameters
     ----------
@@ -434,37 +314,24 @@ def GLI(
     >>> GLI_poly = GLI(-0.5, lambda x: x**2 - 1)
     >>> GLI_sqrt = GLI(0.5, lambda x: np.sqrt(x), 0., 1., 100)
     """
-
     # Flip the domain limits if they are in the wrong order.
     if domain_start > domain_end:
         domain_start, domain_end = domain_end, domain_start
 
-    # Check inputs.
-    checkValues(alpha, domain_start, domain_end, num_points)
-    f_values, step_size = functionCheck(f_name, domain_start, domain_end, num_points)
-
-    f_values = np.asarray(f_values)
-
-    # Get interpolating values.
-    prv = alpha * (alpha - 2) / 8
-    crr = (4 - alpha * alpha) / 4
-    nxt = alpha * (2 + alpha) / 8
-
-    # Build interpolated values (ignoring endpoints for simplicity)
-    interpolated = np.zeros_like(f_values)
-    interpolated[1:-1] = prv * f_values[:-2] + crr * f_values[1:-1] + nxt * f_values[2:] # type: ignore
-
-    # Precompute coefficients
-    b_coeffs = GLcoeffs(alpha, num_points - 1)
-
-    # Single convolution for whole array (valid part only)
-    if num_points < 800:
-        result = np.convolve(interpolated, b_coeffs, mode="full")[:num_points]
-        return result * step_size ** -alpha
-    #FFT convolution
+    # Evaluate function on grid
+    x = np.linspace(domain_start, domain_end, num_points)
+    step_size = (domain_end - domain_start) / (num_points - 1)
+    if callable(f_name):
+        f_values = np.asarray(f_name(x))
     else:
-        result = fftconvolve(interpolated, b_coeffs, mode="full")[:num_points]
-        return result * step_size ** -alpha
+        f_values = np.asarray(f_name)
+        if len(f_values) != num_points:
+            raise ValueError("Function array length doesn't match num_points")
+
+    b_coeffs = GLcoeffs(alpha, num_points)
+    GLI_vals = _GLI_core(alpha, f_values, b_coeffs)
+    return GLI_vals * step_size**-alpha
+
 
 
 def CRONE(alpha, f_name):
@@ -535,8 +402,9 @@ def CRONE(alpha, f_name):
 
 
 #########################################################################################
-########################################### RL ##########################################
+######################################### RLmatrix ######################################
 #########################################################################################
+
 
 def RLmatrix(alpha, N):
     """Vectorized RL coefficient matrix generation"""
@@ -566,6 +434,9 @@ def RLmatrix(alpha, N):
     # Normalize with Gamma function
     return coeffMatrix / Gamma(2 - alpha)
 
+#########################################################################################
+####################################### RLcoeffs ########################################
+#########################################################################################
 
 def RLcoeffs(index_k, index_j, alpha):
     """Calculates coefficients for the RL differintegral operator.
@@ -605,6 +476,9 @@ def RLcoeffs(index_k, index_j, alpha):
             - 2 * (index_k - index_j) ** (1 - alpha)
         )
 
+#########################################################################################
+######################################## RLpoint ########################################
+#########################################################################################
 
 def RLpoint(
     alpha: float,
@@ -678,6 +552,9 @@ def RLpoint(
     C = 1 / Gamma(2 - alpha)
     return C * step_size**-alpha * np.dot(coeffs, f_values)
 
+#########################################################################################
+########################################### RL ##########################################
+#########################################################################################
 
 def RL(
     alpha: float,
@@ -735,10 +612,6 @@ def RL(
     D = RLmatrix(alpha, num_points)
     result = step_size**-alpha * (D @ f_values)
     return result
-
-
-
-
 
 
 #########################################################################################
@@ -1005,125 +878,3 @@ def CaputoFromRLpoint(
     return C
 
 
-#########################################################################################
-######################################## PCsolver #######################################
-#########################################################################################
-
-def PCcoeffs(alpha, j, n):
-    if 1 < alpha:
-        if j == 0:
-            return (
-                (n + 1) ** alpha * (alpha - n)
-                + n**alpha * (2 * n - alpha - 1)
-                - (n - 1) ** (alpha + 1)
-            )
-        elif j == n:
-            return 2 ** (alpha + 1) - alpha - 3
-        return (
-            (n - j + 2) ** (alpha + 1)
-            + 3 * (n - j) ** (alpha + 1)
-            - 3 * (n - j + 1) ** (alpha + 1)
-            - (n - j - 1) ** (alpha + 1)
-        )
-
-
-def PCsolver(
-    initial_values, alpha, f_name, domain_start=0, domain_end=1, num_points=100
-):
-    """Solve an equation of the form D[y(x)]=f(x, y(x)) using the predictor-corrector
-        method, modified to be compatible with fractional derivatives.
-
-    see Deng, W. (2007) Short memory principle and a predictor-corrector approach for
-        fractional differential equations. Journal of Computational and Applied
-        Mathematics.
-
-    test examples from
-        Baskonus, H.M., Bulut, H. (2015) On the numerical solutions of some fractional
-        ordinary differential equations by fractional Adams-Bashforth-Moulton method.
-        De Gruyter.
-        Weilbeer, M. (2005) Efficient Numerical Methods for Fractional Differential
-        Equations and their Analytical Background.
-
-    Parameters
-    ==========
-        initial_values : float 1d-array
-            A list of initial values for the IVP. There should be as many IVs
-            as ceil(alpha).
-        alpha : float
-            The order of the differintegral in the equation to be computed.
-        f_name : function handle or lambda function
-            This is the function on the right side of the equation, and should
-            accept two variables; first the independant variable, and second
-            the equation to be solved.
-        domain_start : float
-            The left-endpoint of the function domain. Default value is 0.
-        domain_end : float
-            The right-endpoint of the function domain; the point at which the
-            differintegral is being evaluated. Default value is 1.
-        num_points : integer
-            The number of points in the domain. Default value is 100.
-
-    Output
-    ======
-        y_correction : float 1d-array
-            The calculated solution to the IVP at each of the points
-            between the left and right endpoint.
-
-    Examples:
-        >>> f_name = lambda x, y : y - x - 1
-        >>> initial_values = [1, 1]
-        >>> y_solved = PCsolver(initial_values, 1.5, f_name)
-        >>> theoretical = np.linspace(0, 1, 100) + 1
-        >>> np.allclose(y_solved, theoretical)
-        True
-    """
-    from scipy.special import factorial
-
-    x_points = np.linspace(domain_start, domain_end, num_points)
-    step_size = x_points[1] - x_points[0]
-    y_correction = np.zeros(num_points, dtype="complex")
-    y_prediction = np.zeros(num_points, dtype="complex")
-
-    y_prediction[0] = initial_values[0]
-    y_correction[0] = initial_values[0]
-    for x_index in range(num_points - 1):
-        initial_value_contribution = 0
-        if 1 < alpha and alpha < 2:
-            initial_value_contribution = initial_values[1] * step_size
-        elif 2 < alpha:
-            for k in range(1, int(np.ceil(alpha))):
-                initial_value_contribution += (
-                    initial_values[k]
-                    / factorial(k)
-                    * (x_points[x_index + 1] ** k - x_points[x_index] ** k)
-                )
-        elif alpha < 1:
-            raise ValueError("Not yet supported!")
-        y_prediction[x_index + 1] += initial_value_contribution
-        y_prediction[x_index + 1] += y_correction[x_index]
-        y_prediction[x_index + 1] += (
-            step_size**alpha
-            / Gamma(alpha + 1)
-            * f_name(x_points[x_index], y_correction[x_index])
-        )
-        subsum = 0
-        for j in range(x_index + 1):
-            subsum += PCcoeffs(alpha, j, x_index) * f_name(x_points[j], y_correction[j])
-        y_prediction[x_index + 1] += step_size**alpha / Gamma(alpha + 2) * subsum
-
-        y_correction[x_index + 1] += initial_value_contribution
-        y_correction[x_index + 1] += y_correction[x_index]
-        y_correction[x_index + 1] += (
-            step_size**alpha
-            / Gamma(alpha + 2)
-            * alpha
-            * f_name(x_points[x_index], y_correction[x_index])
-        )
-        y_correction[x_index + 1] += (
-            step_size**alpha
-            / Gamma(alpha + 2)
-            * f_name(x_points[x_index + 1], y_prediction[x_index + 1])
-        )
-        y_correction[x_index + 1] += step_size**alpha / Gamma(alpha + 2) * subsum
-
-    return y_correction
