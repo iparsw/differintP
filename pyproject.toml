@@ -23,6 +23,7 @@ dependencies = [
     # Add your runtime dependencies here, example:
     "numpy>=1.19",
     "scipy>=1.15.3",
+    "numba>=0.61.2"
 ]
 
 [project.optional-dependencies]

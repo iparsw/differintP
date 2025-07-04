@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 
 # Import from sibling directory.
-from differintP.core import *
+from differintP.core import * # type: ignore
 
 # Define constants to be used in tests.
 poch_first_argument = 1
@@ -85,17 +85,17 @@ class HelperTestCases(unittest.TestCase):
 
     def test_checkValues(self):
         with self.assertRaises(AssertionError):
-            checkValues(0.1, 0, 1, 1.1)
+            checkValues(0.1, 0, 1, 1.1) # type: ignore
         with self.assertRaises(AssertionError):
-            checkValues(0.1, 1j, 2, 100)
+            checkValues(0.1, 1j, 2, 100) # type: ignore
         with self.assertRaises(AssertionError):
-            checkValues(0.1, 1, 2j, 100)
+            checkValues(0.1, 1, 2j, 100) # type: ignore
         with self.assertRaises(AssertionError):
             checkValues(0.1, 0, 1, -100)
         with self.assertRaises(AssertionError):
-            checkValues(1 + 1j, 0, 1, 100)
+            checkValues(1 + 1j, 0, 1, 100) # type: ignore
         checkValues(0.5, 0, 1, 100, support_complex_alpha=True)
-        checkValues(1 + 1j, 0, 1, 100, support_complex_alpha=True)
+        checkValues(1 + 1j, 0, 1, 100, support_complex_alpha=True) # type: ignore
         alpha_vals = np.array([0.1, 0.2])
         domain_vals = np.array([0.1, 1, 2.0, -1])
         num_vals = np.array([1.0, 100.0])

@@ -73,13 +73,15 @@
 
 # differintP Changelog
 
+## 0.0.x
+
 ### 0.0.2 (7/3/2025)
 
 - Optimized core functions: `GL`, `RL`, and `RLpoint`
 - Added GPU-accelerated `GL` (`GL_gpu`) via [CuPy](https://cupy.dev/) (optional dependency)
 - Modernized package setup and build system
 
-#### GL:
+[Benchmark](https://github.com/iparsw/differintC/blob/main/BENCHMARK.md) Result for GL:
 
 | count |  differintP | differint   |
 | ----- | ----------- | ----------- |
@@ -91,7 +93,7 @@
 | 1+e7  | *           | *           |
 
 
-#### RL
+[Benchmark](https://github.com/iparsw/differintC/blob/main/BENCHMARK.md) Result for RL
 
 | count |  differintP | differint   |
 | ----- | ----------- | ----------- |
@@ -100,7 +102,7 @@
 | 1+e4  | 1372.8949 ms| 3.8757 ms   |
 
 
-#### RLpoint
+[Benchmark](https://github.com/iparsw/differintC/blob/main/BENCHMARK.md) Result for RLpoint
 
 | count |  differintP | differint   |
 | ----- | ----------- | ----------- |
@@ -112,10 +114,40 @@
 | 1+e7  | 1257.0316 ms| *           |
 
 
-### 0.0.3
+### 0.0.3 (7/4/2025)
 
 - **Redesigned `GLpoint`:** Now uses a fast, single-pass recurrence to compute the Grünwald-Letnikov fractional derivative at the endpoint. This new implementation is both efficient and direct.
 - Legacy and alternative endpoint methods (`GLpoint_direct` and `GLpoint_via_GL`) have been moved to `special.py` for reference and comparison.
 
+[Benchmark](https://github.com/iparsw/differintC/blob/main/BENCHMARK.md) Result for GLpoint:
+
+| count |  differintP | differint    | Speedup Factor |
+| ----- | ----------- | ------------ | -------------- |
+| 1+e2  | 0.0148 ms   | 0.0416 ms    | x2.81          |
+| 1+e3  | 0.0276 ms   | 0.4213 ms    | x15.26         |
+| 1+e4  | 0.0397 ms   | 3.8376 ms    | x96.66         |
+| 1+e5  | 0.3285 ms   | 36.303 ms    | x110.5         |
+| 1+e6  | 5.267 ms    | 385.9205 ms  | x73.27         |
+| 1+e7  | 51.2645 ms  | 3674.3541 ms | x71.67         |
 
 
+- **Optimized `GLI` implementation:**
+
+  - Replaced class-based coefficient calculation with direct variable computation for improved clarity and performance.
+  - Vectorized the 3-point Lagrange interpolation step for all interior points.
+  - Switched from per-point convolution in a loop to a single global convolution for the entire array, greatly increasing speed.
+  - Introduced a hybrid approach: uses direct convolution for arrays smaller than 800 points and FFT convolution for larger arrays to ensure optimal performance.
+
+[Benchmark](https://github.com/iparsw/differintC/blob/main/BENCHMARK.md) Result for GLI:
+
+| count |  differintP | differint    | Speedup Factor |
+| ----- | ----------- | ------------ | -------------- |
+| 1+e2  | 0.7582 ms   | 0.0536 ms    | x14.14         |
+| 1+e3  | 7.391 ms    | 0.1832 ms    | x40.34         |
+| 1+e4  | 128.3709 ms | 0.6801 ms    | x188.7         |
+| 2+e4  | 15181  ms   | 5.3272 ms    | x2849          |
+
+- Wiki Pages for
+  - `CaputoL1point` `CaputoL2point` `CaputoL2Cpoint` `CaputoFromRLpoint`
+  - `CRONE` `GL` `GLpoint` `GLI` `GL_gpu`
+  - `RL` `RLpoint`
