@@ -107,8 +107,6 @@ Auxiliary Function | Usage
 [RLmatrix](https://github.com/differint/differint/wiki/RLmatrix) | Determines the matrix used in the RL algorithm
 [PCcoeffs](https://github.com/differint/differint/wiki/PCcoeffs) | Determines the coefficients used in the PC algorithm
 
-## Contribute
-To contribute to this project, see the [contributing guidelines](https://github.com/snimpids/differint/blob/master/CONTRIBUTING.md).
 
 ## Credits
 Baleanu, D., Diethelm, K., Scalas, E., & Trujillo, J.J. (2012). Fractional Calculus: Models and Numerical Methods. World Scientific.
