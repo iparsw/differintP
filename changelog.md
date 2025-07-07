@@ -157,3 +157,15 @@
 
 - Aditional test and test restructuring
 - Restructuring the Namespaces
+
+
+### 0.0.4
+
+* **Added Weyl and Riesz Fractional Derivative Functions:**
+
+  * **`Weyl`**: Implements the periodic, right-sided fractional derivative using an FFT-based method. For periodic functions, this operator produces phase-shifted analytical derivatives, and is especially well-suited for spectral methods.
+  * **`Riesz`**: Implements the symmetric (two-sided) fractional derivative, also using FFT. For pure sines/cosines, the Riesz operator multiplies each Fourier mode by $-|k|^\alpha$, resulting in a real-valued, sign-flipped output (not a phase shift). Especially relevant in physics and PDEs.
+* **Testing Update:**
+
+  * Both `Weyl` and `Riesz` are covered by **unittest** and **pytest**-style tests for compatibility and reliability.
+  * The test suite is transitioned from `unittest` to `pytest` for modern, flexible, and more expressive testing.
