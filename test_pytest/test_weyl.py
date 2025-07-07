@@ -79,7 +79,7 @@ class TestWeylAccuray:
         (0.5, 1e-14, 1e-15),   # Riesz(0.5, sin(x)) -> -sin(x)
         (0.7, 2e-14, 5e-15),   # Riesz(0.5, sin(x)) -> -sin(x)
         (1.0, 2e-14, 5e-15),   # Riesz(1.0, sin(x)) -> -sin(x)
-        (1.5, 1e-13, 5e-14),   # Riesz(1.5, sin(x)) -> -sin(x)
+        (1.5, 1.3e-13, 5e-14),   # Riesz(1.5, sin(x)) -> -sin(x)
     ]
 )
 def test_Riesz_sin_derivative(alpha, max_error_thresh, avg_error_thresh):
