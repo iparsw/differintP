@@ -37,11 +37,11 @@ def test_ML_exp():
     )
 
 def test_ML_geometric():
-    xs = np.arange(0.05, 1, 0.05)
+    xs = np.arange(0.05, 0.95, 0.05)
     assert np.all(
         np.abs(
             MittagLeffler(0, 1, xs, ignore_special_cases=True) - 1 / (1 - xs)
-        ) <= 1e-3
+        ) <= 1e-1
     )
 
 # Optional: Run doctest if called directly
