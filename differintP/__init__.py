@@ -15,9 +15,12 @@ from .core import (
     CaputoFromRLpoint,
 )
 
+from .weyl import Weyl, Riesz
+
 from . import functions
 
 __all__ = [
+    # Core
     "GLcoeffs",
     "GL",
     "GLpoint",
@@ -32,6 +35,10 @@ __all__ = [
     "CaputoL2point",
     "CaputoL2Cpoint",
     "CaputoFromRLpoint",
+
+    # weyl
+    "Weyl",
+    "Riesz",
 
     "functions"
 ]
